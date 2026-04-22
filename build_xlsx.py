@@ -6,8 +6,10 @@ import datetime
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils import get_column_letter
 
-SRC = '/Users/victor/Playground/barte-challenge/Nuvio_Tech_Base_Financeira.xlsx'
-OUT = '/Users/victor/Playground/barte-challenge/Nuvio_Tech_Corrigida.xlsx'
+import os
+_DIR = os.path.dirname(os.path.abspath(__file__))
+SRC = os.path.join(_DIR, 'Nuvio_Tech_Base_Financeira.xlsx')
+OUT = os.path.join(_DIR, 'Nuvio_Tech_Corrigida.xlsx')
 
 src = openpyxl.load_workbook(SRC, data_only=True)
 
@@ -384,7 +386,7 @@ def build_dre_corrigida(wb):
     # Impostos — ERP não tem dados confiáveis; usar 7.5% estimativa
     R('  (-) Impostos sobre Receita (est. 7,5%)',
       mk(*[f'=-0.075*B{3+0}',f'=-0.075*C{3+0}',f'=-0.075*D{3+0}']),  # placeholder; fix after
-      -33150, 'Estimativa: 7,5% Receita Bruta (ERP sem dados de impostos confiáveis)')
+      -33150, 'Estimativa: 7,5% Receita Bruta — Simples Nacional varia por faixa; com receita ~8x maior, alíquota efetiva pode ser diferente')
 
     R('  (-) Deduções e Devoluções',
       ['=0','=0','=0'],
@@ -428,8 +430,8 @@ def build_dre_corrigida(wb):
       mk(*[erp_sum('K','Jurídico e Contabilidade',m) for m,_ in MESES]),
       -8000, 'ERP_Limpo, Categoria_Corrigida=Jurídico e Contabilidade')
     R('  Viagens',
-      mk(*[erp_sum('K','Viagens',m) for m,_ in MESES]),
-      -5000, 'ERP_Limpo, Categoria_Corrigida=Viagens')
+      mk(*[ext_sum('Viagens',m) for m,_ in MESES]),
+      -5000, 'Extrato_Limpo, Categoria=Viagens (ERP sem categoria Viagens confiável)')
     R('  Seguros',
       mk(*[erp_sum('K','Seguros',m) for m,_ in MESES]),
       -4000, 'ERP_Limpo, Categoria_Corrigida=Seguros')
@@ -569,7 +571,7 @@ def build_dre_corrigida(wb):
     # Q4 total column (E) for numeric rows
     for r in range(3, excel_row):
         v = ws.cell(r,2).value
-        if v and str(v).startswith('=') and '=IF(' not in str(v):
+        if v and str(v).startswith('=') and not str(v).startswith('=IF('):
             ws.cell(r,5,f'=SUM(B{r}:D{r})').number_format = ws.cell(r,2).number_format
         elif isinstance(v,(int,float)):
             ws.cell(r,5,f'=SUM(B{r}:D{r})').number_format = NUM_FMT
@@ -709,11 +711,11 @@ def build_caixa_corrigido(wb):
     ws.cell(si_r, 4, f'=C{sf_r}').number_format = NUM_FMT
     ws.cell(si_r, 4).font = Font(italic=True)
 
-    # Burn Rate
+    # Burn Rate — operational + financial only (excludes aportes/estornos)
     br_r = row_map['Burn Rate Mensal (Líquido)']
     for ci in [2,3,4]:
         cl = get_column_letter(ci)
-        ws.cell(br_r,ci,f'=-{cl}{vc_r}').number_format = NUM_FMT
+        ws.cell(br_r,ci,f'=-({cl}{fco_r}+{cl}{rf_r})').number_format = NUM_FMT
 
     # Runway
     rw_r = row_map['Runway (meses)']
@@ -727,6 +729,8 @@ def build_caixa_corrigido(wb):
         vb = ws.cell(r_excel,2).value
         if vb and str(vb).startswith('='):
             ws.cell(r_excel,5,f'=AVERAGE(B{r_excel}:D{r_excel})').number_format = NUM_FMT
+    # Runway avg: individual cells may be "N/A" text, so wrap in IFERROR
+    ws.cell(rw_r, 5, f'=IFERROR(AVERAGE(B{rw_r}:D{rw_r}),"N/A")').number_format = '0.0'
 
     for c,w in zip(range(1,7),[36,14,14,14,14,42]):
         cw(ws, c, w)
@@ -914,7 +918,8 @@ def build_dashboard(wb):
          '=SUMIFS(AP_AR_Anotado!D:D,AP_AR_Anotado!A:A,"AP",AP_AR_Anotado!F:F,"Vencida")',
          'Contas a pagar vencidas'),
         ('Clientes sem Recebimento no Extrato Q4',
-         6, 'Lambda Fin, Mu Analytics, Nu Robotics, Omicron Health, Pi Logistics, Rho Security'),
+         '=COUNTIF(Receita_Completa!D24:D38,0)',
+         'Lambda Fin, Mu Analytics, Nu Robotics, Omicron Health, Pi Logistics, Rho Security'),
     ]
     for i, (label, formula, note) in enumerate(alert_rows):
         r = 20 + i
@@ -949,5 +954,7 @@ build_caixa_corrigido(wb)
 build_apar_anotado(wb, src)
 build_dashboard(wb)
 
+from openpyxl.workbook.properties import CalcProperties
+wb.calculation = CalcProperties(fullCalcOnLoad=True)
 wb.save(OUT)
 print(f'\nSalvo em: {OUT}')
