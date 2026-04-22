@@ -711,11 +711,11 @@ def build_caixa_corrigido(wb):
     ws.cell(si_r, 4, f'=C{sf_r}').number_format = NUM_FMT
     ws.cell(si_r, 4).font = Font(italic=True)
 
-    # Burn Rate
+    # Burn Rate — operational + financial only (excludes aportes/estornos)
     br_r = row_map['Burn Rate Mensal (Líquido)']
     for ci in [2,3,4]:
         cl = get_column_letter(ci)
-        ws.cell(br_r,ci,f'=-{cl}{vc_r}').number_format = NUM_FMT
+        ws.cell(br_r,ci,f'=-({cl}{fco_r}+{cl}{rf_r})').number_format = NUM_FMT
 
     # Runway
     rw_r = row_map['Runway (meses)']
@@ -729,6 +729,8 @@ def build_caixa_corrigido(wb):
         vb = ws.cell(r_excel,2).value
         if vb and str(vb).startswith('='):
             ws.cell(r_excel,5,f'=AVERAGE(B{r_excel}:D{r_excel})').number_format = NUM_FMT
+    # Runway avg: individual cells may be "N/A" text, so wrap in IFERROR
+    ws.cell(rw_r, 5, f'=IFERROR(AVERAGE(B{rw_r}:D{rw_r}),"N/A")').number_format = '0.0'
 
     for c,w in zip(range(1,7),[36,14,14,14,14,42]):
         cw(ws, c, w)
