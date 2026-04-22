@@ -42,9 +42,22 @@
 - Cada aba com critérios de verificação contra PROBLEMAS.md
 - Separação clara entre problemas resolvíveis na planilha e problemas operacionais (para o PPT)
 
+### 6. Implementação da planilha corrigida
+- **Output:** `Nuvio_Tech_Corrigida.xlsx` (7 abas), `build_xlsx.py` (script reprodutível)
+- Abas raw: Extrato_Limpo (180 linhas, 9 colunas com categorização e flags), ERP_Limpo (200 linhas, 15 colunas com reclassificação por fornecedor, flags de NF duplicada/sem doc/competência)
+- Receita_Completa: MRR original + visão consolidada ERP vs. Extrato por cliente
+- DRE_Corrigida: 100% derivada por fórmulas (SUMIFS cross-sheet), receita Q4 = R$10.7M vs. R$1.3M original (8.3x)
+- Caixa_Corrigido: derivado do Extrato_Limpo, saldo inicial R$2.85M, encadeamento mensal
+- AP_AR_Anotado: dados originais + ações recomendadas + prioridade + cruzamento com extrato
+- Dashboard: 3 seções (Receita Real vs. Reportada, Saúde do Caixa, Alertas e Flags)
+
+### 7. QA e correção de bugs
+- 6 bugs corrigidos: offset de colunas (DRE e Caixa), Q4 excluindo SUMIFS, saldo inicial Nov/Dez ausente, valores string em vez de numéricos, referências a abas inexistentes no Dashboard
+- 1 gap corrigido: Pessoal na DRE agora via SUMIFS do Extrato_Limpo (ERP não tem dados de folha)
+- Recálculo via LibreOffice para cachear valores de fórmulas
+
 ---
 
 ## Próximas etapas
 
-- [ ] Implementar `Nuvio_Tech_Corrigida.xlsx` (7 abas, conforme PLANO_PLANILHA.md)
 - [ ] Montar material de apresentação (diagnóstico + recomendações para o board)

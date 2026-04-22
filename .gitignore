@@ -1,0 +1,6 @@
+.claude/
+.dual-graph/
+build_xlsx_run.py
+Nuvio_Tech_Corrigida_raw.xlsx
+__pycache__/
+*.pyc

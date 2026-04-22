@@ -405,9 +405,15 @@ def build_dre_corrigida(wb):
     SEP()
 
     R('Despesas Operacionais', None, None, '', bold=True)
+    def ext_sum(cat_val, mes):
+        """SUMIFS formula on Extrato_Limpo for expense categories"""
+        return (f'=SUMIFS(Extrato_Limpo!D:D,'
+                f'Extrato_Limpo!G:G,"{cat_val}",'
+                f'Extrato_Limpo!I:I,"{mes}")')
+
     R('  Pessoal (Salários + Encargos)',
-      ['=0','=0','=0'],
-      -185000, 'ERP sem dados Pessoal confiáveis; extrato: SALÁRIOS E ENCARGOS',
+      mk(*[ext_sum('Pessoal',m) for m,_ in MESES]),
+      -185000, 'Extrato_Limpo (SALÁRIOS E ENCARGOS) — ERP sem dados Pessoal',
       fill=FLAG_FILL)
     R('  Benefícios',
       mk(*[erp_sum('K','Benefícios',m) for m,_ in MESES]),
@@ -437,20 +443,20 @@ def build_dre_corrigida(wb):
     R('  Margem EBITDA %', None, None, '', fmt=PCT_FMT)
     SEP()
 
-    R('  Depreciação e Amortização', ['-3000','-3000','-3000'],
+    R('  Depreciação e Amortização', [-3000,-3000,-3000],
       -3000, 'DRE original — sem fonte raw melhor')
     R('(=) EBIT', None, None, '', bold=True)
     SEP()
 
-    R('  Receitas Financeiras', ['2500','3200','2800'],
+    R('  Receitas Financeiras', [2500,3200,2800],
       2500, 'DRE original — sem fonte raw melhor')
-    R('  Despesas Financeiras', ['-1500','-1800','-2200'],
+    R('  Despesas Financeiras', [-1500,-1800,-2200],
       -1500, 'DRE original — sem fonte raw melhor')
     R('(=) Resultado Financeiro', None, None, '', bold=True)
     SEP()
 
     R('(=) Resultado Antes IR/CS', None, None, '', bold=True)
-    R('  IR/CS', ['0','0','0'], 0, '')
+    R('  IR/CS', [0,0,0], 0, '')
     R('(=) Resultado Líquido', None, None, '', bold=True)
     R('  Margem Líquida %', None, None, '', fmt=PCT_FMT)
 
@@ -459,7 +465,7 @@ def build_dre_corrigida(wb):
     row_map = {}
     excel_row = 3
 
-    def col(c): return ['','B','C','D','E','F','G'][c]
+    def col(c): return get_column_letter(c)  # 2→B, 3→C, 4→D
 
     for item in rows_def:
         if item is None:
@@ -563,7 +569,7 @@ def build_dre_corrigida(wb):
     # Q4 total column (E) for numeric rows
     for r in range(3, excel_row):
         v = ws.cell(r,2).value
-        if v and str(v).startswith('=') and 'IF' not in str(v):
+        if v and str(v).startswith('=') and '=IF(' not in str(v):
             ws.cell(r,5,f'=SUM(B{r}:D{r})').number_format = ws.cell(r,2).number_format
         elif isinstance(v,(int,float)):
             ws.cell(r,5,f'=SUM(B{r}:D{r})').number_format = NUM_FMT
@@ -659,13 +665,14 @@ def build_caixa_corrigido(wb):
     ws.cell(si_r,2).font = Font(italic=True)  # mark as derived, not formula
     ws.cell(si_r,6,'Saldo implícito derivado do extrato (antes de 01/Out/25). '
                     'Caixa_Runway original usava R$3.200.000 (diferença: R$350k não explicada).')
+    # Nov/Dec Saldo Inicial set below after sf_r is determined
 
     # Fluxo Caixa Operacional
     fco_r = row_map['(=) Fluxo Caixa Operacional']
     ent_r = row_map['(+) Entradas Operacionais']
     sai_r = row_map['(-) Saídas Operacionais']
     for ci in [2,3,4]:
-        cl = ['','B','C','D','E'][ci]
+        cl = get_column_letter(ci)
         ws.cell(fco_r,ci,f'={cl}{ent_r}+{cl}{sai_r}').number_format = NUM_FMT
         ws.cell(fco_r,ci).font = BOLD
 
@@ -675,7 +682,7 @@ def build_caixa_corrigido(wb):
     rf_r  = row_map['(+) Receitas Financeiras']
     est_r = row_map['(+) Estornos']
     for ci in [2,3,4]:
-        cl = ['','B','C','D','E'][ci]
+        cl = get_column_letter(ci)
         ws.cell(vc_r,ci,
             f'={cl}{fco_r}+{cl}{apt_r}+{cl}{rf_r}+{cl}{est_r}').number_format = NUM_FMT
         ws.cell(vc_r,ci).font = BOLD
@@ -683,7 +690,7 @@ def build_caixa_corrigido(wb):
     # Saldo Final
     sf_r = row_map['(=) Saldo Final']
     for ci in [2,3,4]:
-        cl = ['','B','C','D','E'][ci]
+        cl = get_column_letter(ci)
         if ci == 2:
             ws.cell(sf_r,ci,f'=B{si_r}+B{vc_r}').number_format = NUM_FMT
         else:
@@ -696,16 +703,22 @@ def build_caixa_corrigido(wb):
                 ws.cell(sf_r,ci,f'=C{sf_r}+D{vc_r}').number_format = NUM_FMT
         ws.cell(sf_r,ci).font = BOLD
 
+    # Saldo Inicial Nov/Dec = Saldo Final do mês anterior
+    ws.cell(si_r, 3, f'=B{sf_r}').number_format = NUM_FMT
+    ws.cell(si_r, 3).font = Font(italic=True)
+    ws.cell(si_r, 4, f'=C{sf_r}').number_format = NUM_FMT
+    ws.cell(si_r, 4).font = Font(italic=True)
+
     # Burn Rate
     br_r = row_map['Burn Rate Mensal (Líquido)']
     for ci in [2,3,4]:
-        cl = ['','B','C','D','E'][ci]
+        cl = get_column_letter(ci)
         ws.cell(br_r,ci,f'=-{cl}{vc_r}').number_format = NUM_FMT
 
     # Runway
     rw_r = row_map['Runway (meses)']
     for ci in [2,3,4]:
-        cl = ['','B','C','D','E'][ci]
+        cl = get_column_letter(ci)
         ws.cell(rw_r,ci,f'=IF({cl}{br_r}<=0,"N/A",{cl}{sf_r}/{cl}{br_r})').number_format='0.0'
 
     # Avg column
@@ -829,23 +842,24 @@ def build_dashboard(wb):
     for c, h in enumerate(['','DRE Original','DRE Corrigida','Diferença','Ratio'], 1):
         subhdr(2, c, h)
 
+    # Hardcoded DRE Original values (DRE_Gerencial sheet not in this workbook)
     dre_data = [
         ('Receita Bruta Out/25',
-         '=DRE_Gerencial!B4',
+         442000,
          '=DRE_Corrigida!B3',
-         '=C3-B3', '=C3/B3'),
+         '=C3-B3', '=IF(B3=0,"N/A",C3/B3)'),
         ('Receita Bruta Nov/25',
-         '=DRE_Gerencial!C4',
+         435500,
          '=DRE_Corrigida!C3',
-         '=C4-B4', '=C4/B4'),
+         '=C4-B4', '=IF(B4=0,"N/A",C4/B4)'),
         ('Receita Bruta Dez/25',
-         '=DRE_Gerencial!D4',
+         416500,
          '=DRE_Corrigida!D3',
-         '=C5-B5', '=C5/B5'),
+         '=C5-B5', '=IF(B5=0,"N/A",C5/B5)'),
         ('Receita Bruta Q4',
-         '=DRE_Gerencial!E4',
+         1294000,
          '=DRE_Corrigida!E3',
-         '=C6-B6', '=C6/B6'),
+         '=C6-B6', '=IF(B6=0,"N/A",C6/B6)'),
     ]
     for i, (label, orig, corr, delta, ratio) in enumerate(dre_data):
         r = 3 + i
@@ -859,16 +873,16 @@ def build_dashboard(wb):
     # ── Seção 2: Saúde do Caixa ────────────────────────────────────────
     title(9, 1, '2. SAÚDE DO CAIXA', 5)
     cash_rows = [
-        ('Saldo Inicial Out/25 (extrato)',   '=Caixa_Corrigido!B4',  ''),
-        ('Saldo Final Dez/25 (extrato)',     '=Caixa_Corrigido!D13', ''),
+        ('Saldo Inicial Out/25 (extrato)',   '=Caixa_Corrigido!B3',  ''),
+        ('Saldo Final Dez/25 (extrato)',     '=Caixa_Corrigido!D15', ''),
         ('Entradas Operacionais Q4',
          '=Caixa_Corrigido!B5+Caixa_Corrigido!C5+Caixa_Corrigido!D5', ''),
         ('Saídas Operacionais Q4',
          '=Caixa_Corrigido!B6+Caixa_Corrigido!C6+Caixa_Corrigido!D6', ''),
         ('Aporte Investidores Q4',
-         '=Caixa_Corrigido!B8+Caixa_Corrigido!C8+Caixa_Corrigido!D8', ''),
-        ('Burn Rate Médio Mensal',   '=Caixa_Corrigido!E16', ''),
-        ('Runway (Dez/25, meses)',   '=Caixa_Corrigido!D17', ''),
+         '=Caixa_Corrigido!B9+Caixa_Corrigido!C9+Caixa_Corrigido!D9', ''),
+        ('Burn Rate Médio Mensal',   '=AVERAGE(Caixa_Corrigido!B17:D17)', ''),
+        ('Runway (Dez/25, meses)',   '=Caixa_Corrigido!D18', ''),
     ]
     for i, (label, formula, note) in enumerate(cash_rows):
         r = 10 + i
